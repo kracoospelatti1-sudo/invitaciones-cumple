@@ -50,7 +50,8 @@ export async function GET(_: Request, context: RouteContext) {
           }
         : null,
     });
-  } catch {
+  } catch (error) {
+    console.error("[GET /api/invitaciones/[token]]", error);
     return NextResponse.json(
       { error: "No se pudo cargar la invitación." },
       { status: 500 },

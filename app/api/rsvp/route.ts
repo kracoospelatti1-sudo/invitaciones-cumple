@@ -67,7 +67,8 @@ export async function POST(request: Request) {
     return NextResponse.json({
       message: "Respuesta registrada con éxito.",
     });
-  } catch {
+  } catch (error) {
+    console.error("[POST /api/rsvp]", error);
     return NextResponse.json(
       { error: "No se pudo guardar la respuesta." },
       { status: 500 },

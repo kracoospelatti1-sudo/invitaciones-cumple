@@ -48,7 +48,8 @@ export async function POST(request: Request, context: RouteContext) {
     return NextResponse.json({
       message: `${guests.length} invitado(s) agregado(s).`,
     });
-  } catch {
+  } catch (error) {
+    console.error("[POST /api/events/[slug]/guests]", error);
     return NextResponse.json(
       { error: "No se pudieron agregar invitados." },
       { status: 500 },

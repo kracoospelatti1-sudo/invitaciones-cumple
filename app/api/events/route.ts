@@ -74,7 +74,8 @@ export async function GET() {
     });
 
     return NextResponse.json({ events: payload });
-  } catch {
+  } catch (error) {
+    console.error("[GET /api/events]", error);
     return NextResponse.json(
       { error: "No se pudieron cargar los eventos." },
       { status: 500 },
@@ -154,7 +155,8 @@ export async function POST(request: Request) {
       },
       { status: 201 },
     );
-  } catch {
+  } catch (error) {
+    console.error("[POST /api/events]", error);
     return NextResponse.json(
       { error: "No se pudo crear el evento." },
       { status: 500 },

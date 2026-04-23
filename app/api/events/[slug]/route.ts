@@ -77,7 +77,8 @@ export async function GET(_: Request, context: RouteContext) {
         respondedAt: guest.rsvp?.respondedAt ?? null,
       })),
     });
-  } catch {
+  } catch (error) {
+    console.error("[GET /api/events/[slug]]", error);
     return NextResponse.json(
       { error: "No se pudo cargar este evento." },
       { status: 500 },

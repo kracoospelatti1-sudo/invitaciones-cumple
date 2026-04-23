@@ -1,0 +1,59 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model Event {
+  id        Int      @id @default(autoincrement())
+  title     String
+  slug      String   @unique
+  eventDate DateTime
+  location  String
+  message   String?  @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  guests Guest[]
+
+  @@map("events")
+}
+
+model Guest {
+  id        Int      @id @default(autoincrement())
+  eventId   Int
+  name      String
+  contact   String?
+  token     String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  rsvp  Rsvp?
+
+  @@index([eventId])
+  @@map("guests")
+}
+
+model Rsvp {
+  id          Int        @id @default(autoincrement())
+  guestId     Int        @unique
+  status      RsvpStatus
+  companions  Int        @default(0)
+  comment     String?    @db.Text
+  respondedAt DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  guest Guest @relation(fields: [guestId], references: [id], onDelete: Cascade)
+
+  @@index([status])
+  @@map("rsvps")
+}
+
+enum RsvpStatus {
+  YES
+  NO
+}

@@ -1,19 +1,27 @@
-import { randomBytes } from "node:crypto";
+import { InvitationStatus } from "@prisma/client";
 
-const stripAccents = (value: string) =>
-  value.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+import { makeToken } from "@/lib/security";
 
-export function makeSlug(value: string): string {
-  const normalized = stripAccents(value)
+export function toSlug(input: string) {
+  return input
     .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9\s-]/g, "")
-    .replace(/\s+/g, "-")
-    .replace(/-+/g, "-");
-
-  return normalized || "cumple";
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 80) || "invitacion";
 }
 
-export function makeToken(): string {
-  return randomBytes(12).toString("hex");
+export function normalizeStatus(value: unknown): InvitationStatus {
+  if (typeof value !== "string") {
+    return InvitationStatus.DRAFT;
+  }
+  const status = value.toUpperCase();
+  return status === InvitationStatus.PUBLISHED
+    ? InvitationStatus.PUBLISHED
+    : InvitationStatus.DRAFT;
+}
+
+export function makeHostViewToken() {
+  return makeToken(32);
 }

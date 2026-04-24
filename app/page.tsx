@@ -1,5 +1,5 @@
-import { HomeClient } from "@/components/home-client";
+import { AdminHomeClient } from "@/components/admin-home-client";
 
 export default function HomePage() {
-  return <HomeClient />;
+  return <AdminHomeClient />;
 }

@@ -12,8 +12,8 @@
     "db:push": "prisma db push"
   },
   "dependencies": {
-    "@tailwindcss/postcss": "^4",
     "@prisma/client": "^6.18.0",
+    "@tailwindcss/postcss": "^4",
     "mysql2": "^3.22.2",
     "next": "16.2.4",
     "react": "19.2.4",

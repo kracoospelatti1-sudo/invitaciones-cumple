@@ -1,70 +1,54 @@
-# Invitaciones de Cumpleaños (Next.js + Hostinger MySQL)
+# MVP Invitaciones Personalizadas
 
-MVP para crear eventos, generar links por invitado y registrar RSVP (`YES` / `NO`).
+Panel de administracion para crear invitaciones, landing publica para RSVP y panel privado de anfitrion por link con token.
 
 ## Stack
 
-- Next.js (App Router + TypeScript)
+- Next.js 16 (App Router + TypeScript)
 - Prisma ORM
-- MySQL (Hostinger)
+- MySQL Hostinger
 
-## Configurar base de datos Hostinger
+## Variables de entorno
 
-1. Crea una base MySQL en el panel de Hostinger.
-2. Habilita acceso remoto al host (si tu plan lo requiere).
-3. Copia `.env.example` a `.env`.
-4. Completa `DATABASE_URL`:
+Crear `.env` con:
 
 ```env
 DATABASE_URL="mysql://USUARIO:CLAVE@HOST:3306/NOMBRE_DB?sslaccept=strict"
+ADMIN_PASSWORD="tu-clave-admin"
+ADMIN_SESSION_SECRET="secreto-largo-unico"
 ```
 
-## Crear tablas
+## Scripts
 
-Puedes usar una de estas dos opciones:
+- `npm run dev` desarrollo local
+- `npm run db:push` crear/sincronizar tablas
+- `npm run prisma:generate` generar cliente Prisma
+- `npm run build` build produccion
 
-1. Prisma (recomendado):
+## Flujo recomendado local
 
-```bash
-npm run db:push
-```
+1. `npm install`
+2. `npm run db:push`
+3. `npm run dev`
+4. Abrir `http://localhost:3000`
 
-2. SQL manual:
-   Ejecuta `database/hostinger-schema.sql` desde phpMyAdmin o cliente MySQL.
+## Rutas de producto
 
-## Levantar proyecto
+- `/` panel admin (login + alta/gestion)
+- `/i/[slug]` landing publica para invitados
+- `/panel-host/[token]` panel privado del anfitrion
+- `/admin/invitaciones/[slug]` editor de una invitacion
 
-```bash
-npm install
-npm run prisma:generate
-npm run dev
-```
+## Endpoints API
 
-Abrir: `http://localhost:3000`
-
-## Rutas UI
-
-- `/` crear evento y ver eventos recientes.
-- `/evento/[slug]` panel del anfitrión con estado de respuestas.
-- `/invitacion/[token]` link público de RSVP para cada invitado.
-
-## API (CRUD básico)
-
-- `GET /api/events` lista eventos.
-- `POST /api/events` crea evento + invitados iniciales.
-- `GET /api/events/[slug]` detalle y métricas del evento.
-- `POST /api/events/[slug]/guests` agrega invitados.
-- `GET /api/invitaciones/[token]` detalle de invitación para RSVP.
-- `POST /api/rsvp` crea/actualiza respuesta de invitado.
-
-## Formato de invitados
-
-En los formularios puedes cargar invitados así:
-
-```text
-Nombre Apellido, +54911...
-Otro Invitado, correo@mail.com
-Solo Nombre
-```
-
-El contacto es opcional.
+- `POST /api/admin/login`
+- `POST /api/admin/logout`
+- `GET /api/admin/session`
+- `GET/POST /api/invitations`
+- `GET/PATCH/DELETE /api/invitations/:slug`
+- `POST /api/invitations/:slug/photos`
+- `POST /api/invitations/:slug/quotes`
+- `GET /api/public/invitations/:slug`
+- `POST /api/rsvp/:slug`
+- `GET /api/host/:token/summary`
+- `GET /api/health/db`

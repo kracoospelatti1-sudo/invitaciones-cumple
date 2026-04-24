@@ -77,6 +77,29 @@ export function HomeClient({ initialIsAdmin }: HomeClientProps) {
     [form.guestsText],
   );
 
+  async function checkAdminSession() {
+    try {
+      const response = await fetch("/api/admin/session", { cache: "no-store" });
+      const payload = (await response.json()) as {
+        configured?: boolean;
+        authenticated?: boolean;
+      };
+
+      if (!response.ok) {
+        return false;
+      }
+
+      if (payload.configured === false) {
+        setAuthMessage("Falta configurar ADMIN_PASSWORD en el servidor.");
+        return false;
+      }
+
+      return payload.authenticated === true;
+    } catch {
+      return false;
+    }
+  }
+
   async function refreshEvents() {
     if (!isAdmin) {
       setEvents([]);
@@ -155,6 +178,15 @@ export function HomeClient({ initialIsAdmin }: HomeClientProps) {
         return;
       }
 
+      const authenticated = await checkAdminSession();
+      if (!authenticated) {
+        setAuthMessage(
+          "No se pudo crear la sesion admin. Revisa cookies/HTTPS del dominio.",
+        );
+        setIsAdmin(false);
+        return;
+      }
+
       setAdminPassword("");
       setIsAdmin(true);
       setAuthMessage("Sesion iniciada.");
@@ -216,6 +248,11 @@ export function HomeClient({ initialIsAdmin }: HomeClientProps) {
       };
 
       if (!response.ok) {
+        if (response.status === 401) {
+          setIsAdmin(false);
+          setError("Tu sesion admin no esta activa. Inicia sesion de nuevo.");
+          return;
+        }
         setError(payload.error ?? "No se pudo crear la invitacion.");
         return;
       }

@@ -34,10 +34,15 @@ export async function POST(request: Request) {
   }
 
   const cookieStore = await cookies();
+  const useSecureCookie =
+    process.env.ADMIN_COOKIE_SECURE === "false"
+      ? false
+      : process.env.NODE_ENV === "production";
+
   cookieStore.set(ADMIN_SESSION_COOKIE, getAdminSessionValue(), {
     httpOnly: true,
     sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
+    secure: useSecureCookie,
     path: "/",
     maxAge: 60 * 60 * 24 * 14,
   });

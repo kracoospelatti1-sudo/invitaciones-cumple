@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 
-import { isAdminRequest } from "@/lib/admin-auth";
 import { parseGuests } from "@/lib/api-validators";
 import { makeToken } from "@/lib/invitation-utils";
 import { getPersistenceErrorMessage } from "@/lib/persistence-errors";
@@ -13,10 +12,6 @@ type RouteContext = {
 };
 
 export async function POST(request: Request, context: RouteContext) {
-  if (!isAdminRequest(request)) {
-    return NextResponse.json({ error: "No autorizado." }, { status: 401 });
-  }
-
   const { slug } = await context.params;
 
   try {

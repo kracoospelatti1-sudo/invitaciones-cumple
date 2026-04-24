@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 
-import { isAdminRequest } from "@/lib/admin-auth";
 import { prisma } from "@/lib/prisma";
 
 export const runtime = "nodejs";
@@ -10,11 +9,7 @@ type RouteContext = {
   params: Promise<{ slug: string }>;
 };
 
-export async function GET(request: Request, context: RouteContext) {
-  if (!isAdminRequest(request)) {
-    return NextResponse.json({ error: "No autorizado." }, { status: 401 });
-  }
-
+export async function GET(_: Request, context: RouteContext) {
   const { slug } = await context.params;
 
   try {

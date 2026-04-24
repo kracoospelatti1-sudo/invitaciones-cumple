@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 
-import { isAdminRequest } from "@/lib/admin-auth";
 import { parseDate, parseGuests } from "@/lib/api-validators";
 import { makeSlug, makeToken } from "@/lib/invitation-utils";
 import { getPersistenceErrorMessage } from "@/lib/persistence-errors";
@@ -29,11 +28,7 @@ async function createUniqueSlug(title: string): Promise<string> {
   }
 }
 
-export async function GET(request: Request) {
-  if (!isAdminRequest(request)) {
-    return NextResponse.json({ error: "No autorizado." }, { status: 401 });
-  }
-
+export async function GET() {
   try {
     const events = await prisma.event.findMany({
       orderBy: { createdAt: "desc" },
@@ -90,10 +85,6 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  if (!isAdminRequest(request)) {
-    return NextResponse.json({ error: "No autorizado." }, { status: 401 });
-  }
-
   try {
     const body = (await request.json()) as {
       title?: unknown;

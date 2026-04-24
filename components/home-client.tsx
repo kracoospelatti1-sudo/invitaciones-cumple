@@ -54,67 +54,26 @@ function parseGuestsFromText(value: string) {
     .filter((guest) => guest.name.length > 0);
 }
 
-type HomeClientProps = {
-  initialIsAdmin: boolean;
-};
-
-export function HomeClient({ initialIsAdmin }: HomeClientProps) {
-  const [isAdmin, setIsAdmin] = useState(initialIsAdmin);
+export function HomeClient() {
   const [form, setForm] = useState(initialForm);
   const [events, setEvents] = useState<EventSummary[]>([]);
   const [isCreating, setIsCreating] = useState(false);
-  const [isLoadingEvents, setIsLoadingEvents] = useState(initialIsAdmin);
+  const [isLoadingEvents, setIsLoadingEvents] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [newLinks, setNewLinks] = useState<CreatedGuest[]>([]);
   const [newSlug, setNewSlug] = useState<string | null>(null);
-  const [adminPassword, setAdminPassword] = useState("");
-  const [authMessage, setAuthMessage] = useState<string | null>(null);
-  const [isAuthLoading, setIsAuthLoading] = useState(false);
 
   const parsedGuestCount = useMemo(
     () => parseGuestsFromText(form.guestsText).length,
     [form.guestsText],
   );
 
-  async function checkAdminSession() {
-    try {
-      const response = await fetch("/api/admin/session", { cache: "no-store" });
-      const payload = (await response.json()) as {
-        configured?: boolean;
-        authenticated?: boolean;
-      };
-
-      if (!response.ok) {
-        return false;
-      }
-
-      if (payload.configured === false) {
-        setAuthMessage("Falta configurar ADMIN_PASSWORD en el servidor.");
-        return false;
-      }
-
-      return payload.authenticated === true;
-    } catch {
-      return false;
-    }
-  }
-
   async function refreshEvents() {
-    if (!isAdmin) {
-      setEvents([]);
-      setIsLoadingEvents(false);
-      return;
-    }
-
     setIsLoadingEvents(true);
     try {
       const response = await fetch("/api/events", { cache: "no-store" });
       const payload = (await response.json()) as { events?: EventSummary[] };
-      if (!response.ok) {
-        setEvents([]);
-        return;
-      }
       setEvents(payload.events ?? []);
     } catch {
       setEvents([]);
@@ -124,23 +83,14 @@ export function HomeClient({ initialIsAdmin }: HomeClientProps) {
   }
 
   useEffect(() => {
-    if (!isAdmin) {
-      return;
-    }
-
     let isActive = true;
 
     fetch("/api/events", { cache: "no-store" })
       .then(async (response) => {
         const payload = (await response.json()) as { events?: EventSummary[] };
-        if (!isActive) {
-          return;
+        if (isActive) {
+          setEvents(payload.events ?? []);
         }
-        if (!response.ok) {
-          setEvents([]);
-          return;
-        }
-        setEvents(payload.events ?? []);
       })
       .catch(() => {
         if (isActive) {
@@ -156,71 +106,10 @@ export function HomeClient({ initialIsAdmin }: HomeClientProps) {
     return () => {
       isActive = false;
     };
-  }, [isAdmin]);
-
-  async function handleAdminLogin(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setAuthMessage(null);
-    setIsAuthLoading(true);
-
-    try {
-      const response = await fetch("/api/admin/login", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ password: adminPassword }),
-      });
-      const payload = (await response.json()) as { error?: string };
-
-      if (!response.ok) {
-        setAuthMessage(payload.error ?? "No se pudo iniciar sesion.");
-        return;
-      }
-
-      const authenticated = await checkAdminSession();
-      if (!authenticated) {
-        setAuthMessage(
-          "No se pudo crear la sesion admin. Revisa cookies/HTTPS del dominio.",
-        );
-        setIsAdmin(false);
-        return;
-      }
-
-      setAdminPassword("");
-      setIsAdmin(true);
-      setAuthMessage("Sesion iniciada.");
-      await refreshEvents();
-    } catch {
-      setAuthMessage("No se pudo iniciar sesion.");
-    } finally {
-      setIsAuthLoading(false);
-    }
-  }
-
-  async function handleAdminLogout() {
-    setIsAuthLoading(true);
-    setAuthMessage(null);
-
-    try {
-      await fetch("/api/admin/logout", { method: "POST" });
-    } finally {
-      setIsAdmin(false);
-      setEvents([]);
-      setNewLinks([]);
-      setNewSlug(null);
-      setForm(initialForm);
-      setIsAuthLoading(false);
-    }
-  }
+  }, []);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!isAdmin) {
-      setError("Necesitas iniciar sesion como admin.");
-      return;
-    }
-
     setError(null);
     setSuccess(null);
     setNewLinks([]);
@@ -248,11 +137,6 @@ export function HomeClient({ initialIsAdmin }: HomeClientProps) {
       };
 
       if (!response.ok) {
-        if (response.status === 401) {
-          setIsAdmin(false);
-          setError("Tu sesion admin no esta activa. Inicia sesion de nuevo.");
-          return;
-        }
         setError(payload.error ?? "No se pudo crear la invitacion.");
         return;
       }
@@ -269,49 +153,6 @@ export function HomeClient({ initialIsAdmin }: HomeClientProps) {
     }
   }
 
-  if (!isAdmin) {
-    return (
-      <main className="mx-auto flex w-full max-w-3xl flex-col gap-8 px-4 py-10 sm:px-6 lg:px-8">
-        <section className="rounded-3xl border border-black/10 bg-white p-6 shadow-sm sm:p-8">
-          <p className="text-sm uppercase tracking-[0.2em] text-[#cc5c33]">
-            Panel privado
-          </p>
-          <h1 className="mt-2 text-3xl font-semibold text-[#15233b] sm:text-4xl">
-            Acceso de super usuario
-          </h1>
-          <p className="mt-3 text-sm text-slate-600 sm:text-base">
-            Solo el administrador puede crear y gestionar eventos.
-          </p>
-          <form className="mt-5 grid gap-3" onSubmit={handleAdminLogin}>
-            <label className="grid gap-1 text-sm">
-              <span className="font-medium text-slate-700">Clave admin</span>
-              <input
-                type="password"
-                value={adminPassword}
-                onChange={(event) => setAdminPassword(event.target.value)}
-                placeholder="Ingresa tu clave"
-                className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 outline-none transition focus:border-[#cc5c33]"
-                required
-              />
-            </label>
-            <button
-              type="submit"
-              disabled={isAuthLoading}
-              className="w-fit rounded-xl bg-[#15233b] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#223a60] disabled:cursor-not-allowed disabled:opacity-70"
-            >
-              {isAuthLoading ? "Ingresando..." : "Entrar como admin"}
-            </button>
-          </form>
-          {authMessage ? (
-            <p className="mt-4 rounded-xl bg-slate-50 px-3 py-2 text-sm text-slate-700">
-              {authMessage}
-            </p>
-          ) : null}
-        </section>
-      </main>
-    );
-  }
-
   return (
     <main className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-4 py-10 sm:px-6 lg:px-8">
       <section className="rounded-3xl border border-black/10 bg-white p-6 shadow-sm sm:p-8">
@@ -326,16 +167,6 @@ export function HomeClient({ initialIsAdmin }: HomeClientProps) {
           boton de si o no. Desde tu panel ves confirmados, rechazados y
           pendientes.
         </p>
-        <div className="mt-4">
-          <button
-            type="button"
-            onClick={handleAdminLogout}
-            disabled={isAuthLoading}
-            className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-70"
-          >
-            Cerrar sesion
-          </button>
-        </div>
       </section>
 
       <section className="grid gap-6 lg:grid-cols-[1.2fr_1fr]">
@@ -349,8 +180,8 @@ export function HomeClient({ initialIsAdmin }: HomeClientProps) {
               <input
                 required
                 value={form.title}
-                onChange={(event) =>
-                  setForm((current) => ({ ...current, title: event.target.value }))
+                onChange={(e) =>
+                  setForm((current) => ({ ...current, title: e.target.value }))
                 }
                 placeholder="Ej: Cumple de Sofi"
                 className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 outline-none transition focus:border-[#cc5c33]"
@@ -363,10 +194,10 @@ export function HomeClient({ initialIsAdmin }: HomeClientProps) {
                 type="datetime-local"
                 required
                 value={form.eventDate}
-                onChange={(event) =>
+                onChange={(e) =>
                   setForm((current) => ({
                     ...current,
-                    eventDate: event.target.value,
+                    eventDate: e.target.value,
                   }))
                 }
                 className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 outline-none transition focus:border-[#cc5c33]"
@@ -378,10 +209,10 @@ export function HomeClient({ initialIsAdmin }: HomeClientProps) {
               <input
                 required
                 value={form.location}
-                onChange={(event) =>
+                onChange={(e) =>
                   setForm((current) => ({
                     ...current,
-                    location: event.target.value,
+                    location: e.target.value,
                   }))
                 }
                 placeholder="Direccion o salon"
@@ -396,8 +227,8 @@ export function HomeClient({ initialIsAdmin }: HomeClientProps) {
               <textarea
                 rows={3}
                 value={form.message}
-                onChange={(event) =>
-                  setForm((current) => ({ ...current, message: event.target.value }))
+                onChange={(e) =>
+                  setForm((current) => ({ ...current, message: e.target.value }))
                 }
                 placeholder="Traer malla, habra pileta..."
                 className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 outline-none transition focus:border-[#cc5c33]"
@@ -411,10 +242,10 @@ export function HomeClient({ initialIsAdmin }: HomeClientProps) {
               <textarea
                 rows={5}
                 value={form.guestsText}
-                onChange={(event) =>
+                onChange={(e) =>
                   setForm((current) => ({
                     ...current,
-                    guestsText: event.target.value,
+                    guestsText: e.target.value,
                   }))
                 }
                 placeholder={"Ana Perez, +54911...\nCarlos Lopez, carlos@mail.com"}

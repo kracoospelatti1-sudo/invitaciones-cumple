@@ -54,15 +54,23 @@ function parseGuestsFromText(value: string) {
     .filter((guest) => guest.name.length > 0);
 }
 
-export function HomeClient() {
+type HomeClientProps = {
+  initialIsAdmin: boolean;
+};
+
+export function HomeClient({ initialIsAdmin }: HomeClientProps) {
+  const [isAdmin, setIsAdmin] = useState(initialIsAdmin);
   const [form, setForm] = useState(initialForm);
   const [events, setEvents] = useState<EventSummary[]>([]);
   const [isCreating, setIsCreating] = useState(false);
-  const [isLoadingEvents, setIsLoadingEvents] = useState(true);
+  const [isLoadingEvents, setIsLoadingEvents] = useState(initialIsAdmin);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [newLinks, setNewLinks] = useState<CreatedGuest[]>([]);
   const [newSlug, setNewSlug] = useState<string | null>(null);
+  const [adminPassword, setAdminPassword] = useState("");
+  const [authMessage, setAuthMessage] = useState<string | null>(null);
+  const [isAuthLoading, setIsAuthLoading] = useState(false);
 
   const parsedGuestCount = useMemo(
     () => parseGuestsFromText(form.guestsText).length,
@@ -70,10 +78,20 @@ export function HomeClient() {
   );
 
   async function refreshEvents() {
+    if (!isAdmin) {
+      setEvents([]);
+      setIsLoadingEvents(false);
+      return;
+    }
+
     setIsLoadingEvents(true);
     try {
       const response = await fetch("/api/events", { cache: "no-store" });
       const payload = (await response.json()) as { events?: EventSummary[] };
+      if (!response.ok) {
+        setEvents([]);
+        return;
+      }
       setEvents(payload.events ?? []);
     } catch {
       setEvents([]);
@@ -83,14 +101,23 @@ export function HomeClient() {
   }
 
   useEffect(() => {
+    if (!isAdmin) {
+      return;
+    }
+
     let isActive = true;
 
     fetch("/api/events", { cache: "no-store" })
       .then(async (response) => {
         const payload = (await response.json()) as { events?: EventSummary[] };
-        if (isActive) {
-          setEvents(payload.events ?? []);
+        if (!isActive) {
+          return;
         }
+        if (!response.ok) {
+          setEvents([]);
+          return;
+        }
+        setEvents(payload.events ?? []);
       })
       .catch(() => {
         if (isActive) {
@@ -106,10 +133,62 @@ export function HomeClient() {
     return () => {
       isActive = false;
     };
-  }, []);
+  }, [isAdmin]);
+
+  async function handleAdminLogin(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setAuthMessage(null);
+    setIsAuthLoading(true);
+
+    try {
+      const response = await fetch("/api/admin/login", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ password: adminPassword }),
+      });
+      const payload = (await response.json()) as { error?: string };
+
+      if (!response.ok) {
+        setAuthMessage(payload.error ?? "No se pudo iniciar sesion.");
+        return;
+      }
+
+      setAdminPassword("");
+      setIsAdmin(true);
+      setAuthMessage("Sesion iniciada.");
+      await refreshEvents();
+    } catch {
+      setAuthMessage("No se pudo iniciar sesion.");
+    } finally {
+      setIsAuthLoading(false);
+    }
+  }
+
+  async function handleAdminLogout() {
+    setIsAuthLoading(true);
+    setAuthMessage(null);
+
+    try {
+      await fetch("/api/admin/logout", { method: "POST" });
+    } finally {
+      setIsAdmin(false);
+      setEvents([]);
+      setNewLinks([]);
+      setNewSlug(null);
+      setForm(initialForm);
+      setIsAuthLoading(false);
+    }
+  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!isAdmin) {
+      setError("Necesitas iniciar sesion como admin.");
+      return;
+    }
+
     setError(null);
     setSuccess(null);
     setNewLinks([]);
@@ -137,36 +216,89 @@ export function HomeClient() {
       };
 
       if (!response.ok) {
-        setError(payload.error ?? "No se pudo crear la invitación.");
+        setError(payload.error ?? "No se pudo crear la invitacion.");
         return;
       }
 
-      setSuccess("Evento creado. Ya podés compartir las invitaciones.");
+      setSuccess("Evento creado. Ya podes compartir las invitaciones.");
       setNewLinks(payload.guests ?? []);
       setNewSlug(payload.event.slug);
       setForm(initialForm);
       await refreshEvents();
     } catch {
-      setError("No se pudo crear la invitación.");
+      setError("No se pudo crear la invitacion.");
     } finally {
       setIsCreating(false);
     }
+  }
+
+  if (!isAdmin) {
+    return (
+      <main className="mx-auto flex w-full max-w-3xl flex-col gap-8 px-4 py-10 sm:px-6 lg:px-8">
+        <section className="rounded-3xl border border-black/10 bg-white p-6 shadow-sm sm:p-8">
+          <p className="text-sm uppercase tracking-[0.2em] text-[#cc5c33]">
+            Panel privado
+          </p>
+          <h1 className="mt-2 text-3xl font-semibold text-[#15233b] sm:text-4xl">
+            Acceso de super usuario
+          </h1>
+          <p className="mt-3 text-sm text-slate-600 sm:text-base">
+            Solo el administrador puede crear y gestionar eventos.
+          </p>
+          <form className="mt-5 grid gap-3" onSubmit={handleAdminLogin}>
+            <label className="grid gap-1 text-sm">
+              <span className="font-medium text-slate-700">Clave admin</span>
+              <input
+                type="password"
+                value={adminPassword}
+                onChange={(event) => setAdminPassword(event.target.value)}
+                placeholder="Ingresa tu clave"
+                className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 outline-none transition focus:border-[#cc5c33]"
+                required
+              />
+            </label>
+            <button
+              type="submit"
+              disabled={isAuthLoading}
+              className="w-fit rounded-xl bg-[#15233b] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#223a60] disabled:cursor-not-allowed disabled:opacity-70"
+            >
+              {isAuthLoading ? "Ingresando..." : "Entrar como admin"}
+            </button>
+          </form>
+          {authMessage ? (
+            <p className="mt-4 rounded-xl bg-slate-50 px-3 py-2 text-sm text-slate-700">
+              {authMessage}
+            </p>
+          ) : null}
+        </section>
+      </main>
+    );
   }
 
   return (
     <main className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-4 py-10 sm:px-6 lg:px-8">
       <section className="rounded-3xl border border-black/10 bg-white p-6 shadow-sm sm:p-8">
         <p className="text-sm uppercase tracking-[0.2em] text-[#cc5c33]">
-          Invitaciones de cumpleaños
+          Invitaciones de cumpleanos
         </p>
         <h1 className="mt-2 text-3xl font-semibold text-[#15233b] sm:text-4xl">
-          Crea una invitación y controla asistencias en un solo link
+          Crea una invitacion y controla asistencias en un solo link
         </h1>
         <p className="mt-3 max-w-3xl text-sm text-slate-600 sm:text-base">
           Cargas el evento, agregas invitados y cada persona confirma con un
-          botón de sí o no. Desde tu panel ves confirmados, rechazados y
+          boton de si o no. Desde tu panel ves confirmados, rechazados y
           pendientes.
         </p>
+        <div className="mt-4">
+          <button
+            type="button"
+            onClick={handleAdminLogout}
+            disabled={isAuthLoading}
+            className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-70"
+          >
+            Cerrar sesion
+          </button>
+        </div>
       </section>
 
       <section className="grid gap-6 lg:grid-cols-[1.2fr_1fr]">
@@ -175,13 +307,13 @@ export function HomeClient() {
           <form className="mt-5 grid gap-4" onSubmit={handleSubmit}>
             <label className="grid gap-1 text-sm">
               <span className="font-medium text-slate-700">
-                Título del cumpleaños
+                Titulo del cumpleanos
               </span>
               <input
                 required
                 value={form.title}
-                onChange={(e) =>
-                  setForm((current) => ({ ...current, title: e.target.value }))
+                onChange={(event) =>
+                  setForm((current) => ({ ...current, title: event.target.value }))
                 }
                 placeholder="Ej: Cumple de Sofi"
                 className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 outline-none transition focus:border-[#cc5c33]"
@@ -194,10 +326,10 @@ export function HomeClient() {
                 type="datetime-local"
                 required
                 value={form.eventDate}
-                onChange={(e) =>
+                onChange={(event) =>
                   setForm((current) => ({
                     ...current,
-                    eventDate: e.target.value,
+                    eventDate: event.target.value,
                   }))
                 }
                 className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 outline-none transition focus:border-[#cc5c33]"
@@ -209,13 +341,13 @@ export function HomeClient() {
               <input
                 required
                 value={form.location}
-                onChange={(e) =>
+                onChange={(event) =>
                   setForm((current) => ({
                     ...current,
-                    location: e.target.value,
+                    location: event.target.value,
                   }))
                 }
-                placeholder="Dirección o salón"
+                placeholder="Direccion o salon"
                 className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 outline-none transition focus:border-[#cc5c33]"
               />
             </label>
@@ -227,28 +359,28 @@ export function HomeClient() {
               <textarea
                 rows={3}
                 value={form.message}
-                onChange={(e) =>
-                  setForm((current) => ({ ...current, message: e.target.value }))
+                onChange={(event) =>
+                  setForm((current) => ({ ...current, message: event.target.value }))
                 }
-                placeholder="Traer malla, habrá pileta..."
+                placeholder="Traer malla, habra pileta..."
                 className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 outline-none transition focus:border-[#cc5c33]"
               />
             </label>
 
             <label className="grid gap-1 text-sm">
               <span className="font-medium text-slate-700">
-                Invitados (uno por línea: nombre, contacto opcional)
+                Invitados (uno por linea: nombre, contacto opcional)
               </span>
               <textarea
                 rows={5}
                 value={form.guestsText}
-                onChange={(e) =>
+                onChange={(event) =>
                   setForm((current) => ({
                     ...current,
-                    guestsText: e.target.value,
+                    guestsText: event.target.value,
                   }))
                 }
-                placeholder={"Ana Pérez, +54911...\nCarlos López, carlos@mail.com"}
+                placeholder={"Ana Perez, +54911...\nCarlos Lopez, carlos@mail.com"}
                 className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 outline-none transition focus:border-[#cc5c33]"
               />
             </label>
@@ -280,7 +412,7 @@ export function HomeClient() {
 
           {newSlug ? (
             <p className="mt-3 text-sm text-slate-700">
-              Panel del anfitrión:{" "}
+              Panel del anfitrion:{" "}
               <Link
                 className="font-semibold text-[#cc5c33] hover:underline"
                 href={`/evento/${newSlug}`}
@@ -293,7 +425,7 @@ export function HomeClient() {
           {newLinks.length > 0 ? (
             <div className="mt-4 rounded-2xl border border-slate-200 p-4">
               <h3 className="text-sm font-semibold text-slate-700">
-                Links de invitación recién creados
+                Links de invitacion recien creados
               </h3>
               <ul className="mt-3 grid gap-2 text-sm">
                 {newLinks.map((guest) => (
@@ -325,7 +457,7 @@ export function HomeClient() {
             <p className="mt-4 text-sm text-slate-500">Cargando eventos...</p>
           ) : events.length === 0 ? (
             <p className="mt-4 text-sm text-slate-500">
-              Aún no hay eventos creados.
+              Aun no hay eventos creados.
             </p>
           ) : (
             <ul className="mt-4 grid gap-3">
@@ -350,7 +482,7 @@ export function HomeClient() {
                     </Link>
                   </div>
                   <p className="mt-2 text-xs text-slate-600">
-                    Sí: {item.stats.yes} | No: {item.stats.no} | Pendientes:{" "}
+                    Si: {item.stats.yes} | No: {item.stats.no} | Pendientes:{" "}
                     {item.stats.pending} | Total invitados: {item.totalGuests}
                   </p>
                 </li>

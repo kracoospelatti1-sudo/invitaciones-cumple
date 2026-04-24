@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 
+import { isAdminRequest } from "@/lib/admin-auth";
 import { parseGuests } from "@/lib/api-validators";
 import { makeToken } from "@/lib/invitation-utils";
+import { getPersistenceErrorMessage } from "@/lib/persistence-errors";
 import { prisma } from "@/lib/prisma";
 
 export const runtime = "nodejs";
@@ -11,6 +13,10 @@ type RouteContext = {
 };
 
 export async function POST(request: Request, context: RouteContext) {
+  if (!isAdminRequest(request)) {
+    return NextResponse.json({ error: "No autorizado." }, { status: 401 });
+  }
+
   const { slug } = await context.params;
 
   try {
@@ -51,7 +57,7 @@ export async function POST(request: Request, context: RouteContext) {
   } catch (error) {
     console.error("[POST /api/events/[slug]/guests]", error);
     return NextResponse.json(
-      { error: "No se pudieron agregar invitados." },
+      { error: getPersistenceErrorMessage(error) },
       { status: 500 },
     );
   }

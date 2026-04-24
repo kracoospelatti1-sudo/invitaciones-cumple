@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { parseCompanions, parseRsvpStatus } from "@/lib/api-validators";
+import { getPersistenceErrorMessage } from "@/lib/persistence-errors";
 import { prisma } from "@/lib/prisma";
 
 export const runtime = "nodejs";
@@ -70,7 +71,7 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error("[POST /api/rsvp]", error);
     return NextResponse.json(
-      { error: "No se pudo guardar la respuesta." },
+      { error: getPersistenceErrorMessage(error) },
       { status: 500 },
     );
   }

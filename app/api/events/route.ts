@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 
+import { isAdminRequest } from "@/lib/admin-auth";
 import { parseDate, parseGuests } from "@/lib/api-validators";
 import { makeSlug, makeToken } from "@/lib/invitation-utils";
+import { getPersistenceErrorMessage } from "@/lib/persistence-errors";
 import { prisma } from "@/lib/prisma";
 
 export const runtime = "nodejs";
@@ -27,7 +29,11 @@ async function createUniqueSlug(title: string): Promise<string> {
   }
 }
 
-export async function GET() {
+export async function GET(request: Request) {
+  if (!isAdminRequest(request)) {
+    return NextResponse.json({ error: "No autorizado." }, { status: 401 });
+  }
+
   try {
     const events = await prisma.event.findMany({
       orderBy: { createdAt: "desc" },
@@ -77,13 +83,17 @@ export async function GET() {
   } catch (error) {
     console.error("[GET /api/events]", error);
     return NextResponse.json(
-      { error: "No se pudieron cargar los eventos." },
+      { error: getPersistenceErrorMessage(error) },
       { status: 500 },
     );
   }
 }
 
 export async function POST(request: Request) {
+  if (!isAdminRequest(request)) {
+    return NextResponse.json({ error: "No autorizado." }, { status: 401 });
+  }
+
   try {
     const body = (await request.json()) as {
       title?: unknown;
@@ -158,7 +168,7 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error("[POST /api/events]", error);
     return NextResponse.json(
-      { error: "No se pudo crear el evento." },
+      { error: getPersistenceErrorMessage(error) },
       { status: 500 },
     );
   }
